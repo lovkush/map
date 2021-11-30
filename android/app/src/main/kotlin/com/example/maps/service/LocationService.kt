@@ -23,8 +23,8 @@ import java.util.*
 class LocationService  : Service() {
 
     companion object{
-        const val NOTIFICATION_CHANNEL_ID = "LoccaID"
-        fun startService(context: Context, path: String) {
+
+
             val intent = Intent(context, LocationService::class.java).apply {
                 putExtra("Path", path)
             }
