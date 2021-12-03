@@ -3,13 +3,16 @@ import 'package:firebase_database/firebase_database.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import 'maps.dart';
+
 
 
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp();
-  runApp(MyApp());
+  //runApp(MyApp());
+  runApp(MaterialApp( home : const MyHomePage(title: 'location',)));
 }
 class MyApp extends StatefulWidget {
   @override
@@ -100,7 +103,7 @@ class _MyAppState extends State<MyApp> {
   Future<void> startService() async {
     String location;
     try {
-      final int result = await platform.invokeMethod('location');
+      final int result = await platform.invokeMethod('startLocation',{'path':'driverId'});
       location = 'location at $result % .';
     } on PlatformException catch (e) {
       location = "Failed to get location: '${e.message}'.";

@@ -1,8 +1,13 @@
 
+// ignore_for_file: prefer_const_constructors
+
 import 'dart:async';
+import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_database/firebase_database.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:permission_handler/permission_handler.dart';
@@ -18,25 +23,45 @@ class MyHomePage extends StatefulWidget {
 
 class _MyHomePageState extends State<MyHomePage> {
 
-  final Set<Marker> _markers = {};
 
-  Completer<GoogleMapController> _controller = Completer();
+  final Completer<GoogleMapController> _controller = Completer();
    final Permission _permission = Permission.location;
   PermissionStatus _permissionStatus = PermissionStatus.denied;
   late Position position;
-  CameraPosition _myLocation =
-  CameraPosition(target: LatLng(0,0),zoom: 12);
+  final CameraPosition _myLocation = const CameraPosition(target: LatLng(0,0),zoom: 12);
+  static const platform = MethodChannel('samples.flutter.dev/location');
+  final DatabaseReference ref = FirebaseDatabase.instance.reference();
+  final Future<FirebaseApp> _future = Firebase.initializeApp();
+  late StreamSubscription<Event> _locationEvent;
 
+  late BitmapDescriptor customIcon;
+
+
+
+  LatLng currentLatLong = LatLng(0.0, 0.0) ;
+  final MarkerId markerId =  MarkerId('markerId');
+  final Set<Marker> _markers = {};
+  late Marker marker;
   @override
   void initState() {
     super.initState();
+    // make sure to initialize before map loading
+    BitmapDescriptor.fromAssetImage(ImageConfiguration(size: Size(12, 12)),
+        'assets/msp.png')
+        .then((d) {
+      customIcon = d;
+      initializeMarker();
+    });
+
     _listenForPermissionStatus();
     if (defaultTargetPlatform == TargetPlatform.android) {
       AndroidGoogleMapsFlutter.useAndroidViewSurface = true;
     }
+    getLocationFromFirebase();
    init();
   }
-  LatLng currentLatlant = LatLng(0.0, 0.0) ;
+
+
   void init() async{
     _determinePosition().whenComplete(() =>     print('location1'));
 
@@ -51,31 +76,49 @@ class _MyHomePageState extends State<MyHomePage> {
     double height = MediaQuery.of(context).size.height;
     double width = MediaQuery.of(context).size.width;
 
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(widget.title),
+    return MaterialApp(
+      home : Scaffold(
+        appBar: AppBar(
+          title: Text(widget.title),
+        ),
+        body:FutureBuilder(
+            future: _future,
+            builder: (context, snapshot) {
+              if (snapshot.hasError) {
+                return Text(snapshot.error.toString());
+              } else {
+                return
+                  SizedBox(
+                    width: width,
+                    height: height / 2,
+                    child: GoogleMap(
+                      mapType: MapType.normal,
+                      markers: _markers,
+                      initialCameraPosition: _myLocation,
+                      onMapCreated: (GoogleMapController controller) {
+                        _controller.complete(controller);
+                      },
+                    ),
+                  );
+              }
+            }),
+        floatingActionButton: FloatingActionButton(
+          onPressed:
+          () => {startService()},
+          tooltip: 'Increment',
+          child: const Icon(Icons.add),
+        ), // This trailing comma makes auto-formatting nicer for build methods.
       ),
-      body:SizedBox(
-                width: width,
-                height: height/2,
-                child: GoogleMap(
-                  mapType: MapType.normal,
-                  markers: _markers,
-                  initialCameraPosition: _myLocation,
-                  onMapCreated: (GoogleMapController controller) {
-                    _controller.complete(controller);
-                  },
-                ),
-              ),
-      floatingActionButton: FloatingActionButton(
-        onPressed:
-        () => {checkServiceStatus(
-            context, _permission as PermissionWithService)},
-        tooltip: 'Increment',
-        child: const Icon(Icons.add),
-      ), // This trailing comma makes auto-formatting nicer for build methods.
     );
   }
+
+
+
+
+
+
+
+
   void checkServiceStatus(
       BuildContext context, PermissionWithService permission) async {
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(
@@ -127,30 +170,68 @@ class _MyHomePageState extends State<MyHomePage> {
     print('location');
     Position location = await Geolocator.getCurrentPosition().whenComplete(() => print('1sdfg'));
     print('2sdfg ${location.latitude}');
-    currentLatlant = LatLng(location.latitude,location.longitude);
+    currentLatLong = LatLng(location.latitude,location.longitude);
 
-    CameraUpdate update =CameraUpdate.newCameraPosition(CameraPosition(target: currentLatlant,zoom: 12));
+    CameraUpdate update =CameraUpdate.newCameraPosition(CameraPosition(target: currentLatLong,zoom: 12));
 
-     Marker markers = Marker(
-      markerId: MarkerId('marker_id_1'),
-      position: currentLatlant,
-
-      infoWindow: InfoWindow(title: 'marker_id_1', snippet: '*'),
-      onTap: () {
-        //_onMarkerTapped(markerId);
-        print('Marker Tapped');
-      },
-      onDragEnd: (LatLng position) {
-        print('Drag Ended');
-      },  );
+    _markers.remove(marker);
+      marker = marker.copyWith(positionParam: currentLatLong);
 
 
      setState(() {
-       _markers.add(markers);
+       _markers.add(marker);
      });
 
     final GoogleMapController controller = await _controller.future;
     controller.animateCamera(update);
 
+  }
+
+
+
+
+
+
+
+
+  Future<void> startService() async {
+    String location;
+    try {
+      final int result = await platform.invokeMethod('startLocation',{'path':'driverId'});
+      location = 'location at $result % .';
+    } on PlatformException catch (e) {
+      location = "Failed to get location: '${e.message}'.";
+    }
+    print(location);
+  }
+
+  void initializeMarker() {
+    marker = Marker(
+      markerId: markerId,
+      position: currentLatLong,
+    icon: customIcon
+    );
+  }
+
+  void getLocationFromFirebase() {
+    _locationEvent = FirebaseDatabase.instance.reference().child('driverId').onValue.listen((event) {
+      double lat = 0.0;
+      double long = 0.0;
+      Map<dynamic, dynamic> values = event.snapshot.value;
+      print('values : $values');
+      lat =  values['lat'];
+      long = values['long'];
+
+      Map<String,double> map = event.snapshot.value;
+
+      currentLatLong = LatLng(lat, long);
+      _markers.remove(marker);
+      marker = marker.copyWith(
+        positionParam: currentLatLong
+      );
+      setState(() {
+        _markers.add(marker);
+      });
+    });
   }
 }

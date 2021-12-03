@@ -39,46 +39,35 @@ class MainActivity:FlutterActivity(){
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, CHANNEL).setMethodCallHandler {
             // Note: this method is invoked on the main thread.
                 call, result ->
-            if (call.method == "location") {
-
+            if (call.method == "startLocation") {
                 if (!checkPermission()) {
                     requestPermission()
                 }else{
-
                     if (isLocationEnabled())
                     {
                         Log.d("TAG", "configureFlutterEngine: true")
-                        LocationService.startService(this@MainActivity,"path")
-                        //ContextCompat.startForegroundService(this@MainActivity, Intent(this@MainActivity, LocationService::class.java))
+
+                        val path :String? = call.argument("path")
+                        if (path != null) {
+                            Log.d("TAG", "start Service: ")
+                            LocationService.startService(this@MainActivity,path)
+                            result.success(1)
+                        }
+                    }else{
+                        result.success(2)
                     }
                 }
 
-                result.success(2)
-
-            } else {
+//            }else if(call.method == "startLocation"){
+//               // LocationService.stopService(this@MainActivity,path)
+//                result.success(3)
+            }
+              else {
                 result.notImplemented()
             }
         }
 
 
-    }
-
-    private fun getBatteryLevel(): Int {
-        val database = Firebase.database
-        val myRef = database.getReference("message")
-
-
-        myRef.setValue("Hello, World!")
-        val batteryLevel: Int
-        if (VERSION.SDK_INT >= VERSION_CODES.LOLLIPOP) {
-            val batteryManager = getSystemService(Context.BATTERY_SERVICE) as BatteryManager
-            batteryLevel = batteryManager.getIntProperty(BatteryManager.BATTERY_PROPERTY_CAPACITY)
-        } else {
-            val intent = ContextWrapper(applicationContext).registerReceiver(null, IntentFilter(Intent.ACTION_BATTERY_CHANGED))
-            batteryLevel = intent!!.getIntExtra(BatteryManager.EXTRA_LEVEL, -1) * 100 / intent.getIntExtra(BatteryManager.EXTRA_SCALE, -1)
-        }
-
-        return batteryLevel
     }
 
 

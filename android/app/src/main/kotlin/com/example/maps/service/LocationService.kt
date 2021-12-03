@@ -23,8 +23,9 @@ import java.util.*
 class LocationService  : Service() {
 
     companion object{
-
-
+        const val NOTIFICATION_CHANNEL_ID = "LoccaID"
+        var isServiceStarted = false
+        fun startService(context: Context, path: String) {
             val intent = Intent(context, LocationService::class.java).apply {
                 putExtra("Path", path)
             }
@@ -36,10 +37,6 @@ class LocationService  : Service() {
     private var path : String = ""
     override fun onCreate() {
         super.onCreate()
-        Log.d("TAG", "onCreate: ")
-//        var intent =Intent()
-//        var bundle : Bundle?=intent.extras
-//         path = bundle!!.getString("value").toString() // 1
         isServiceStarted = true
         val builder: NotificationCompat.Builder =
             NotificationCompat.Builder(this, NOTIFICATION_CHANNEL_ID)
@@ -61,16 +58,15 @@ class LocationService  : Service() {
     }
 
     override fun onStartCommand(intent: Intent, flags: Int, startId: Int): Int {
-        val timer = Timer()
-
         path = intent.getStringExtra("Path").toString()
-
         LocationHelper().startListeningUserLocation(
             this, object : MyLocationListener {
                 override fun onLocationChanged(location: Location?) {
-
                     //Here we will get the location
-                    FirebaseDatabase.getInstance().reference.child(path).setValue(location?.latitude)
+                   // Log.d("LocationTAG", "onLocationChanged: ${FirebaseDatabase.getInstance().reference.child(path).toString()}")
+
+                    FirebaseDatabase.getInstance().reference.child("$path/lat").setValue(location?.latitude)
+                    FirebaseDatabase.getInstance().reference.child("$path/long").setValue(location?.longitude)
                     Log.d("LocationTAG:","Location is:${location?.latitude}, ${location?.longitude}")
                 }
             })
