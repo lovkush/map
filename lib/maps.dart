@@ -31,8 +31,8 @@ class _MyHomePageState extends State<MyHomePage> {
   final CameraPosition _myLocation = const CameraPosition(target: LatLng(0,0),zoom: 12);
   static const platform = MethodChannel('samples.flutter.dev/location');
   final DatabaseReference ref = FirebaseDatabase.instance.reference();
-  final Future<FirebaseApp> _future = Firebase.initializeApp();
   late StreamSubscription<Event> _locationEvent;
+  List<LatLng> coordinatesList =[];
 
   late BitmapDescriptor customIcon;
 
@@ -42,6 +42,7 @@ class _MyHomePageState extends State<MyHomePage> {
   final MarkerId markerId =  MarkerId('markerId');
   final Set<Marker> _markers = {};
   late Marker marker;
+  late Polyline polyline;
   @override
   void initState() {
     super.initState();
@@ -76,48 +77,39 @@ class _MyHomePageState extends State<MyHomePage> {
     double height = MediaQuery.of(context).size.height;
     double width = MediaQuery.of(context).size.width;
 
-    return MaterialApp(
-      home : Scaffold(
+    return  Scaffold(
         appBar: AppBar(
           title: Text(widget.title),
         ),
-        body:FutureBuilder(
-            future: _future,
-            builder: (context, snapshot) {
-              if (snapshot.hasError) {
-                return Text(snapshot.error.toString());
-              } else {
-                return
-                  SizedBox(
+        body:SizedBox(
                     width: width,
                     height: height / 2,
                     child: GoogleMap(
                       mapType: MapType.normal,
                       markers: _markers,
+                      polylines: Set<Polyline>.of(_mapPolylines.values),
                       initialCameraPosition: _myLocation,
                       onMapCreated: (GoogleMapController controller) {
                         _controller.complete(controller);
                       },
                     ),
-                  );
-              }
-            }),
+                  ),
         floatingActionButton: FloatingActionButton(
           onPressed:
           () => {startService()},
           tooltip: 'Increment',
           child: const Icon(Icons.add),
         ), // This trailing comma makes auto-formatting nicer for build methods.
-      ),
     );
   }
 
 
+  @override
+  void dispose() {
+    _locationEvent.cancel();
 
-
-
-
-
+    super.dispose();
+  }
 
   void checkServiceStatus(
       BuildContext context, PermissionWithService permission) async {
@@ -190,8 +182,15 @@ class _MyHomePageState extends State<MyHomePage> {
 
 
 
+  Map<PolylineId, Polyline> _mapPolylines = {};
+  final PolylineId polylineId = PolylineId('polyline_id');
 
-
+  void _add() {
+     polyline = polyline.copyWith(pointsParam: coordinatesList);
+    setState(() {
+      _mapPolylines[polylineId] = polyline;
+    });
+  }
 
 
   Future<void> startService() async {
@@ -209,8 +208,17 @@ class _MyHomePageState extends State<MyHomePage> {
     marker = Marker(
       markerId: markerId,
       position: currentLatLong,
-    icon: customIcon
+    // icon: customIcon
     );
+
+    polyline = Polyline(
+      polylineId: polylineId,
+      consumeTapEvents: true,
+      color: Colors.red,
+      width: 5,
+      points:  const [LatLng(0.0, 0.0)],
+    );
+
   }
 
   void getLocationFromFirebase() {
@@ -222,9 +230,9 @@ class _MyHomePageState extends State<MyHomePage> {
       lat =  values['lat'];
       long = values['long'];
 
-      Map<String,double> map = event.snapshot.value;
-
       currentLatLong = LatLng(lat, long);
+      coordinatesList.add(currentLatLong);
+      _add();
       _markers.remove(marker);
       marker = marker.copyWith(
         positionParam: currentLatLong
